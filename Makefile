@@ -38,6 +38,7 @@ examples/word_count_addendum: examples/word_count_addendum.c libmr.a
 
 #esecuzione del test
 test: all
+	@rm -f mr.log statistiche_finali.txt
 	@echo "****** Esecuzione test 1 word_count ******"
 	@./examples/word_count tests/cartella_input tests/output1.mro && echo "TEST 1 SUCCESS" || echo "TEST 1 FAIL"
 	@echo "****** Esecuzione test 1 terminato ******"

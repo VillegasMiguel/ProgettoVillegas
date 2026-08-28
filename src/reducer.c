@@ -93,6 +93,7 @@ static void segnala_errore_reducer(Coda_reducer_t **array_coda_thread){
 
 static int reader_reducer(void *arg){
     Coda_reducer_t **array_coda_thread_worker = arg;
+    scrivi_log(array_coda_thread_worker[0]->mr, "avvio reader reducer thread", "REDUCER",1);
     size_t num_thread = array_coda_thread_worker[0]->mr->attributi->reducer_threads;
     mr_t mr = array_coda_thread_worker[0]->mr;
     mr_hash_t hash = mr->attributi->hash;
@@ -109,13 +110,18 @@ static int reader_reducer(void *arg){
                 cnd_signal(&array_coda_thread_worker[i]->empty);
                 mtx_unlock(&array_coda_thread_worker[i]->mtx_coda);
             }
+            scrivi_log(mr, "terminato con successo reader reducer thread", "REDUCER", 1);
             return 0;
         }
-        SYSLETTREDC(mr, n_read_len_coppia, sizeof(mr_pair_header_map_to_red_t), "errore lettura lunghezza coppia token value", atomic_fetch_add(&errore,1));
+        SYSLETTREDC(mr, n_read_len_coppia, sizeof(mr_pair_header_map_to_red_t), "errore lettura lunghezza coppia token value", {
+            atomic_fetch_add(&errore,1);
+            scrivi_log(mr, "terminato con errore reader reducer thread", "REDUCER", 1);
+        });
 
         if(len_coppia.token_len<=0 || len_coppia.token_len>MAX_LUNGHEZZA_TOKEN){
             scrivi_log(mr, "errore dimensione lunghezza token", "REDUCER",1);
             segnala_errore_reducer(array_coda_thread_worker);
+            scrivi_log(mr, "terminato con errore reader reducer thread", "REDUCER", 1);
             return -1;
         }
 
@@ -124,6 +130,7 @@ static int reader_reducer(void *arg){
         if(len_coppia.value_len<0 || len_coppia.value_len>MAX_LUNGHEZZA_VALUE){
             scrivi_log(mr, "errore dimensione lunghezza value", "REDUCER", 1);
             segnala_errore_reducer(array_coda_thread_worker);
+            scrivi_log(mr, "terminato con errore reader reducer thread", "REDUCER", 1);
             return -1;
         }
 
@@ -133,13 +140,14 @@ static int reader_reducer(void *arg){
         SYSNCALLC(token=malloc(len_token+1), "errore malloc token in reducer", {
             scrivi_log(mr, "errore malloc token in reducer","REDUCER", 1);
             segnala_errore_reducer(array_coda_thread_worker);
-            return -1;
+            scrivi_log(mr, "terminato con errore reader reducer thread", "REDUCER", 1);
         });
 
         ssize_t n_read_token=readn(STDIN_FILENO, token, len_token);
         SYSLETTREDC(mr, n_read_token, len_token, "errore lettura token in reducer", {
             segnala_errore_reducer(array_coda_thread_worker);
             free(token);
+            scrivi_log(mr, "terminato con errore reader reducer thread", "REDUCER", 1);
         });
         token[len_token]='\0';
 
@@ -149,14 +157,15 @@ static int reader_reducer(void *arg){
                 scrivi_log(mr, "errore malloc value in reducer", "REDUCER",1);
                 segnala_errore_reducer(array_coda_thread_worker);
                 free(token);
-                return -1;
+                scrivi_log(mr, "terminato con errore reader reducer thread", "REDUCER", 1);
             });
             ssize_t n_read_value = readn(STDIN_FILENO, value, len_value);
             SYSLETTREDC(mr, n_read_value, len_value, "errore lettura value in reducer", {
-            segnala_errore_reducer(array_coda_thread_worker);
-            free(token);
-            free(value);
-        });
+                segnala_errore_reducer(array_coda_thread_worker);
+                free(token);
+                free(value);
+                scrivi_log(mr, "terminato con errore reader reducer thread", "REDUCER", 1);
+            });
         }
         
 
@@ -172,6 +181,7 @@ static int reader_reducer(void *arg){
             segnala_errore_reducer(array_coda_thread_worker);
             free(token);
             free(value);
+            scrivi_log(mr, "terminato con errore reader reducer thread", "REDUCER", 1);
         });
 
         coppia->token=token;
@@ -191,6 +201,7 @@ static int reader_reducer(void *arg){
             scrivi_log(mr,"errore mtx_lock coda del thread bersaglio", "REDUCER", 1);
             segnala_errore_reducer(array_coda_thread_worker);
             libera_coppia(coppia);
+            scrivi_log(mr, "terminato con errore reader reducer thread", "REDUCER", 1);
         });
 
         while(thread_bersaglio->count==capacity_coda_bersaglio && !atomic_load(&errore)){
@@ -199,6 +210,7 @@ static int reader_reducer(void *arg){
                 mtx_unlock(&(thread_bersaglio->mtx_coda));
                 libera_coppia(coppia);
                 segnala_errore_reducer(array_coda_thread_worker);
+                scrivi_log(mr, "terminato con errore reader reducer thread", "REDUCER", 1);
             });
         }
 
@@ -207,6 +219,7 @@ static int reader_reducer(void *arg){
         if(atomic_load(&errore)){
             libera_coppia(coppia);
             mtx_unlock(&(thread_bersaglio->mtx_coda));
+            scrivi_log(mr, "terminato con errore reader reducer thread", "REDUCER", 1);
             return -1;
         }
 
@@ -216,15 +229,15 @@ static int reader_reducer(void *arg){
         
         SYSTHCALLC(cnd_signal(&(thread_bersaglio->empty)), "errore cnd_signal empty thread bersaglio",{
             scrivi_log(mr, "errore cnd_signal empty thread bersaglio", "REDUCER",1);
+            scrivi_log(mr, "terminato con errore reader reducer thread", "REDUCER", 1);
         });
 
         SYSTHCALLC(mtx_unlock(&(thread_bersaglio->mtx_coda)), "errore mtx_unlock thread bersaglio", {
             scrivi_log(mr, "errore mtx_unlock thread bersaglio", "REDUCER", 1);
+            scrivi_log(mr, "terminato con errore reader reducer thread", "REDUCER", 1);
         });
         mr->contatore_coppie++; //fuori dalla lock, solamente il thread reader ha il ruolo di incrementare il contatore coppie
     }
-
-    return 0;
 }
 
 
@@ -417,6 +430,7 @@ static int esegui_reduce(mr_t mr, Nodo_token_t **head_token_list, Args_reducer_t
             scrivi_log(mr, "errore malloc values per funzione reducer", "REDUCER", id_thread);
             segnala_errore_reducer(arg_ptr->Array_coda_thread_worker);
             free_token_value_list(head_token_list);
+            scrivi_log(mr, "terminato con errore worker reducer thread", "REDUCER", id_thread);
         });
         Nodo_value_t *value_nodo = (*head_token_list)->Head_lista_value;
         for(size_t i = 0; i < (*head_token_list)->count_values; i++){
@@ -429,6 +443,7 @@ static int esegui_reduce(mr_t mr, Nodo_token_t **head_token_list, Args_reducer_t
             segnala_errore_reducer(arg_ptr->Array_coda_thread_worker);
             free_token_value_list(head_token_list);
             free(values);
+            scrivi_log(mr, "terminato con errore worker reducer thread", "REDUCER", id_thread);
             return -1;
         }
         free(values);
@@ -445,11 +460,13 @@ static int esegui_reduce(mr_t mr, Nodo_token_t **head_token_list, Args_reducer_t
         *head_token_list = nodo_tok_succ;
     }
     atomic_fetch_add(&mr->contatore_token_distinti, token_distinti_thread);
+    scrivi_log(mr, "terminato con successo worker reducer thread", "REDUCER", id_thread);
     return 0;
 }
 
 static int reducer_worker_main(void *arg){
     Args_reducer_t *arg_ptr = (Args_reducer_t*) arg;
+    scrivi_log(arg_ptr->coda->mr, "avvio worker reducer thread", "REDUCER", arg_ptr->thrd_id);
     Coda_reducer_t *coda_arg = arg_ptr->coda;
     Coppia_t **coda = coda_arg->coda_reducer;
     size_t capacity = coda_arg->capacity;
@@ -462,6 +479,7 @@ static int reducer_worker_main(void *arg){
             scrivi_log(mr, "errore mtx_lock di mtx_coda", "REDUCER", id_thread);
             segnala_errore_reducer(arg_ptr->Array_coda_thread_worker);
             free_token_value_list(&head_token_list);
+            scrivi_log(mr, "terminato con errore worker reducer thread", "REDUCER", id_thread);
         });
 
         while(coda_arg->count == 0 && !atomic_load(&eof) && !atomic_load(&errore)){
@@ -470,12 +488,14 @@ static int reducer_worker_main(void *arg){
                 mtx_unlock(&coda_arg->mtx_coda);
                 segnala_errore_reducer(arg_ptr->Array_coda_thread_worker);
                 free_token_value_list(&head_token_list);
+                scrivi_log(mr, "terminato con errore worker reducer thread", "REDUCER", id_thread);
             });
         }
 
         if(atomic_load(&errore)){
             mtx_unlock(&coda_arg->mtx_coda);
             free_token_value_list(&head_token_list);
+            scrivi_log(mr, "terminato con errore worker reducer thread", "REDUCER", id_thread);
             return -1;
         }
 
@@ -496,6 +516,7 @@ static int reducer_worker_main(void *arg){
             scrivi_log(mr, "errore mtx_unlock di mtx_coda", "REDUCER", id_thread);
             segnala_errore_reducer(arg_ptr->Array_coda_thread_worker);
             free_token_value_list(&head_token_list);
+            scrivi_log(mr, "terminato con errore worker reducer thread", "REDUCER", id_thread);
         });
 
         Nodo_token_t *nodo_token = trova_token(head_token_list, coppia_pescata->token);
@@ -503,16 +524,19 @@ static int reducer_worker_main(void *arg){
             if(crea_token_nodo(&head_token_list, coppia_pescata->token, arg_ptr) == -1){
                 libera_coppia(coppia_pescata);
                 free_token_value_list(&head_token_list);
+                scrivi_log(mr, "terminato con errore worker reducer thread", "REDUCER", id_thread);
                 return -1;
             }
             if(crea_value_nodo(&head_token_list->Head_lista_value, coppia_pescata->info_value.data, coppia_pescata->info_value.size, arg_ptr) == -1){
                 free_token_value_list(&head_token_list);
+                scrivi_log(mr, "terminato con errore worker reducer thread", "REDUCER", id_thread);
                 return -1;
             }
             head_token_list->count_values++;
         } else {
             if(crea_value_nodo(&nodo_token->Head_lista_value, coppia_pescata->info_value.data, coppia_pescata->info_value.size, arg_ptr) == -1){
                 free_token_value_list(&head_token_list);
+                scrivi_log(mr, "terminato con errore worker reducer thread", "REDUCER", id_thread);
                 return -1;
             }
             nodo_token->count_values++;

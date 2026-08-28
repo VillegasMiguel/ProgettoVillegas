@@ -208,6 +208,7 @@ static int emit(const char *token, const void *value, size_t value_size, void *e
 
 static int reader_mapper ( void * arg ){
     Args_mapper_t *arg_ptr = (Args_mapper_t*) arg;
+    scrivi_log(arg_ptr->coda->mr, "avvio reader mapper thread", "MAPPER", 1);
     mr_file_line_t **coda = arg_ptr->coda->coda_mapper;
     size_t *tail = &(arg_ptr->coda->tail);
     size_t *count = &(arg_ptr->coda->count);
@@ -219,12 +220,12 @@ static int reader_mapper ( void * arg ){
     cnd_t *empty_ptr = &(arg_ptr->coda->empty);
 
 
-
     while(1){
         //controllo flag errore
         SYSTHCALLC(mtx_lock(mtx_coda_ptr), "errore mtx_lock della coda da parte di reader_mapper", {
             scrivi_log(mr, "errore mtx_lock della coda da parte di reader_mapper", "MAPPER", id_thread);
             segnala_errore_thread(arg_ptr->coda);
+            scrivi_log(mr, "terminato con errore reader mapper thread", "MAPPER", 1);
         });
         if(arg_ptr->coda->errore){
             SYSTHCALLC(mtx_unlock(mtx_coda_ptr), "errore mtx_unlock della coda da parte di reader_mapper", scrivi_log(mr, "errore mtx_unlock della coda da parte di reader_mapper", "MAPPER", id_thread));
@@ -239,6 +240,7 @@ static int reader_mapper ( void * arg ){
             SYSTHCALLC(mtx_lock(mtx_coda_ptr), "errore mtx_lock della coda da parte di reader_mapper", {
                 scrivi_log(mr, "errore mtx_lock della coda da parte di reader_mapper", "MAPPER",id_thread);
                 segnala_errore_thread(arg_ptr->coda);
+                scrivi_log(mr, "terminato con errore reader mapper thread", "MAPPER", 1);
             });
             arg_ptr->coda->eof=1; //segnalo agli altri thread che la coda è chiusa
 
@@ -246,11 +248,14 @@ static int reader_mapper ( void * arg ){
                 scrivi_log(mr, "errore cnd_broadcast in reader_mapper", "MAPPER", id_thread);
                 mtx_unlock(mtx_coda_ptr);
                 segnala_errore_thread(arg_ptr->coda);
+                scrivi_log(mr, "terminato con errore reader mapper thread", "MAPPER", 1);
             });
             SYSTHCALLC(mtx_unlock(mtx_coda_ptr), "errore mtx_unlock della coda da parte di reader_mapper", {
                 scrivi_log(mr, "errore mtx_unlock della coda da parte di reader_mapper", "MAPPER", id_thread);
                 segnala_errore_thread(arg_ptr->coda);
+                scrivi_log(mr, "terminato con errore reader mapper thread", "MAPPER", 1);
             });
+            scrivi_log(mr, "terminato con successo reader mapper thread", "MAPPER", 1);
             return 0;
         }
         
@@ -261,10 +266,12 @@ static int reader_mapper ( void * arg ){
             SYSTHCALLC(mtx_lock(mtx_coda_ptr), "errore mtx_lock per gestione errore in reader_mapper", {
                 scrivi_log(mr, "errore mtx_lock per gestione errore in reader_mapper", "MAPPER", id_thread );
                 segnala_errore_thread(arg_ptr->coda);
+                scrivi_log(mr, "terminato con errore reader mapper thread", "MAPPER", 1);
             });
             arg_ptr->coda->errore = 1; 
             cnd_broadcast(empty_ptr); //prevenire deadlock
             mtx_unlock(mtx_coda_ptr);
+            scrivi_log(mr, "terminato con errore reader mapper thread", "MAPPER", 1);
             return -1;
         }
 
@@ -273,6 +280,7 @@ static int reader_mapper ( void * arg ){
         SYSTHCALLC(mtx_lock(mtx_coda_ptr), "errore mtx_lock della coda da parte di reader_mapper", {
             scrivi_log(mr, "errore mtx_lock della coda da parte di reader_mapper", "MAPPER",id_thread );
             segnala_errore_thread(arg_ptr->coda);
+            scrivi_log(mr, "terminato con errore reader mapper thread", "MAPPER", 1);
         });   
         while(*count == *capacity && !(arg_ptr->coda->errore)){
             SYSTHCALLC(cnd_wait(full_ptr, mtx_coda_ptr), "errore cnd_wait in reader_mapper",{
@@ -280,6 +288,7 @@ static int reader_mapper ( void * arg ){
                 mtx_unlock(mtx_coda_ptr);
                 free((void*)msg->file_name);free((void*)msg->line);free(msg);
                 segnala_errore_thread(arg_ptr->coda);
+                scrivi_log(mr, "terminato con errore reader mapper thread", "MAPPER", 1);
             });
         }
 
@@ -288,6 +297,7 @@ static int reader_mapper ( void * arg ){
             SYSTHCALLC(mtx_unlock(mtx_coda_ptr), "errore mtx_unlock della coda da parte di reader_mapper", scrivi_log(mr, "errore mtx_unlock della coda da parte di reader_mapper", "MAPPER", id_thread));
             free((void*)msg->file_name);free((void*)msg->line);free(msg);
             segnala_errore_thread(arg_ptr->coda);
+            scrivi_log(mr, "terminato con errore reader mapper thread", "MAPPER", 1);
             return-1;
         }
         
@@ -300,11 +310,13 @@ static int reader_mapper ( void * arg ){
             mtx_unlock(mtx_coda_ptr);
             free((void*)msg->file_name);free((void*)msg->line);free(msg);
             segnala_errore_thread(arg_ptr->coda);
+            scrivi_log(mr, "terminato con errore reader mapper thread", "MAPPER", 1);
         });
 
         SYSTHCALLC(mtx_unlock(mtx_coda_ptr), "errore mtx_unlock della coda da parte di reader_mapper", {
             scrivi_log(mr, "errore mtx_unlock della coda da parte di reader_mapper", "MAPPER", id_thread);
             segnala_errore_thread(arg_ptr->coda);
+            scrivi_log(mr, "terminato con errore reader mapper thread", "MAPPER", 1);
         });
     }
 };
@@ -312,6 +324,7 @@ static int reader_mapper ( void * arg ){
 
 static int mapper_worker_main ( void * arg ){
     Args_mapper_t *arg_ptr = (Args_mapper_t*) arg;
+    scrivi_log(arg_ptr->coda->mr, "avvio worker mapper thread", "MAPPER", arg_ptr->thrd_id);
     mr_file_line_t **coda = arg_ptr->coda->coda_mapper;
     size_t *head = &(arg_ptr->coda->head);
     size_t *count = &(arg_ptr->coda->count);
@@ -328,13 +341,18 @@ static int mapper_worker_main ( void * arg ){
         SYSTHCALLC(mtx_lock(mtx_coda_ptr), "errore lock mutex coda in mapper_worker", {scrivi_log(mr, "errore lock mutex coda in mapper_worker", "MAPPER", id_thread);segnala_errore_thread(arg_ptr->coda);});
         if(arg_ptr->coda->eof && (*count)==0){ //anche se mandato EOF, bisogna comunque liberare tutta la coda prima di far terminare i vari thread worker
             SYSTHCALLC(mtx_unlock(mtx_coda_ptr), "errore unlock mutex coda in mapper_worker", {scrivi_log(mr, "errore unlock mutex coda in mapper_worker", "MAPPER", id_thread);segnala_errore_thread(arg_ptr->coda);});
+            scrivi_log(mr, "terminato con successo worker mapper thread", "MAPPER", id_thread);
             return 0;
         }
         while((*count)==0 && !(arg_ptr->coda->errore) && !(arg_ptr->coda->eof)){
-            SYSTHCALLC(cnd_wait(empty_ptr, mtx_coda_ptr), "errore cnd_wait in mapper_worker", {scrivi_log(mr, "errore cnd_wait in mapper_worker", "MAPPER", id_thread);segnala_errore_thread(arg_ptr->coda);});
+            SYSTHCALLC(cnd_wait(empty_ptr, mtx_coda_ptr), "errore cnd_wait in mapper_worker", {
+                scrivi_log(mr, "errore cnd_wait in mapper_worker", "MAPPER", id_thread);segnala_errore_thread(arg_ptr->coda);
+                scrivi_log(mr, "terminato con errore worker mapper thread", "MAPPER", id_thread);
+            });
         }
         if(arg_ptr->coda->errore){
             SYSTHCALLC(mtx_unlock(mtx_coda_ptr), "errore unlock mutex coda in mapper_worker", {scrivi_log(mr, "errore unlock mutex coda in mapper_worker", "MAPPER", id_thread);segnala_errore_thread(arg_ptr->coda);});
+            scrivi_log(mr, "terminato con errore worker mapper thread", "MAPPER", id_thread);
             return -1;
         }
         
@@ -342,26 +360,30 @@ static int mapper_worker_main ( void * arg ){
             SYSTHCALLC(mtx_unlock(mtx_coda_ptr), "errore unlock mutex coda in mapper_worker",{
                 scrivi_log(mr, "errore unlock mutex coda in mapper_worker", "MAPPER", id_thread);
                 segnala_errore_thread(arg_ptr->coda);
+                scrivi_log(mr, "terminato con errore worker mapper thread", "MAPPER", id_thread);
             });
+            scrivi_log(mr, "terminato con successo worker mapper thread", "MAPPER", id_thread);
             return 0;
         }
 
         msg = coda[*head];
         *head = ((*head)+1) % (*capacity);
         (*count)--;
-        SYSTHCALLC(cnd_signal(full_ptr), "errore cnd_signal in mapper_worker", scrivi_log(mr, "errore cnd_signal in mapper_worker", "MAPPER", id_thread));
+        SYSTHCALLC(cnd_signal(full_ptr), "errore cnd_signal in mapper_worker",{
+            scrivi_log(mr, "errore cnd_signal in mapper_worker", "MAPPER", id_thread);
+            scrivi_log(mr, "terminato con errore worker mapper thread", "MAPPER", id_thread);
+        });
         SYSTHCALLC(mtx_unlock(mtx_coda_ptr), "errore unlock mutex coda in mapper_worker", {scrivi_log(mr, "errore unlock mutex coda in mapper_worker", "MAPPER", id_thread);segnala_errore_thread(arg_ptr->coda);});
 
         //chiamata alla funzione mapper
         if(mr->mapper_fun(msg, emit, arg_ptr, mr->user_arg)==-1){
             free((void*)msg->file_name);free((void*)msg->line);free(msg);
             scrivi_log(mr, "errore chiamata funzione mapper", "MAPPER", id_thread);
+            scrivi_log(mr, "terminato con errore worker mapper thread", "MAPPER", id_thread);
             return -1;
         };
         free((void*)msg->file_name);free((void*)msg->line);free(msg);
     }
-
-
 }
 
 void mtx_cnd_destroy(Coda_mapper_t *coda){
