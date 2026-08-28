@@ -67,11 +67,13 @@ static char* tempo_corrente(){
 
 //funzione per scrivere all'interno del file log
 void scrivi_log(mr_t mr, char *messaggio, char *processo, size_t numero_thread){
+
     /*
     formato dei messaggi del log ha la forma
     [timestamp] [numero elaborazione] [processo] [thread] messaggio
     */
     sem_wait(mr->log_sem);
+    FILE *f_log = fopen(mr->attributi->log_file, "a");
     char* timestamp;
     timestamp = tempo_corrente();
     if(timestamp==NULL){
@@ -79,9 +81,10 @@ void scrivi_log(mr_t mr, char *messaggio, char *processo, size_t numero_thread){
         return;
     }
 
-    fprintf(mr->f_log, "[%s] [%zu] [%s] [%zu] [%s]\n", timestamp, mr->numero_elaborazione, processo, numero_thread, messaggio);
+    fprintf(f_log, "[%s] [%zu] [%s] [%zu] [%s]\n", timestamp, mr->numero_elaborazione, processo, numero_thread, messaggio);
     free(timestamp);
-    fflush(mr->f_log); //liberare il buffer prima che un altro processo cerchi di scrivere nel log
+    fflush(f_log); //liberare il buffer prima che un altro processo cerchi di scrivere nel log
+    fclose(f_log);
     sem_post(mr->log_sem);
     return;
 }
@@ -206,18 +209,6 @@ int mr_create(mr_t *mr, const mr_attr_t *attr, mr_mapper_t mapper, mr_reducer_t 
     });
     mr_attr->log_file=log_name;
 
-    SYSNCALLC((*mr)->f_log=fopen(mr_attr->log_file, "a"), "fopen del log_file", {
-        free(*mr);free(mr_attr);free(log_name);
-        atomic_fetch_sub(&numero_elaborazioni_attive,1);
-    });
-
-    SYSNCALLC((*mr)->f_stat=fopen(NAME_STAT_FILE, "a"), "fopen del log_file", {
-        free(mr_attr);free(log_name);
-        SYSCALL(fclose((*mr)->f_log), "fclose di f_log nella gestione errore di fopen di f_stat");
-        atomic_fetch_sub(&numero_elaborazioni_attive,1);
-        free(*mr);
-    });
-    
 
     /*
     necessaria deep copy perché esplicitato nel testo del progetto che una volta evocato la mr_create,
@@ -234,8 +225,6 @@ int mr_create(mr_t *mr, const mr_attr_t *attr, mr_mapper_t mapper, mr_reducer_t 
     SYSSEMCALLC((*mr)->log_sem=sem_open(NAME_SEM_LOG, O_CREAT, 0666,1), "errore apertura semaforo log",{
         free(mr_attr);free(log_name);
         atomic_fetch_sub(&numero_elaborazioni_attive,1);
-        SYSCALL(fclose((*mr)->f_log), "errore fclose di f_log nella gestione errore di sem_open di sem_log");
-        SYSCALL(fclose((*mr)->f_stat), "errore fclose di f_stat nella gestione errore di sem_open di sem_log");
         free(*mr);
     });
     SYSSEMCALLC((*mr)->stat_sem=sem_open(NAME_SEM_STAT, O_CREAT, 0666,1), "errore apertura semaforo statistiche",{
@@ -246,8 +235,6 @@ int mr_create(mr_t *mr, const mr_attr_t *attr, mr_mapper_t mapper, mr_reducer_t 
             SYSCALL(sem_unlink(NAME_SEM_LOG), "errore unlink di sem_log nella gestione errore di sem_open del sem_stat");
         }
 
-        SYSCALL(fclose((*mr)->f_log), "errore fclose di f_log nella gestione errore di sem_open di sem_stat");
-        SYSCALL(fclose((*mr)->f_stat), "errore fclose di f_stat nella gestione errore di sem_open di sem_stat");
         free(*mr);
     });   
 
@@ -261,8 +248,6 @@ int mr_create(mr_t *mr, const mr_attr_t *attr, mr_mapper_t mapper, mr_reducer_t 
             SYSCALL(sem_unlink(NAME_SEM_STAT), "errore unlink di sem_stat nella gestione errore di malloc tempo inizio");
         }
 
-        SYSCALL(fclose((*mr)->f_log), "errore fclose di f_log nella gestione errore di malloc tempo inizio");
-        SYSCALL(fclose((*mr)->f_stat), "errore fclose di f_stat nella gestione errore di malloc tempo inizio");
         free(*mr);
     });
     SYSNCALLC((*mr)->fine = malloc(sizeof(struct timespec)), "errore malloc mr->fine", {
@@ -274,8 +259,6 @@ int mr_create(mr_t *mr, const mr_attr_t *attr, mr_mapper_t mapper, mr_reducer_t 
             SYSCALL(sem_unlink(NAME_SEM_STAT), "errore unlink di sem_stat nella gestione errore di malloc tempo fine");
         }
 
-        SYSCALL(fclose((*mr)->f_log), "errore fclose di f_log nella gestione errore di malloc tempo fine");
-        SYSCALL(fclose((*mr)->f_stat), "errore fclose di f_stat nella gestione errore di malloc tempo fine");
         free(*mr);
     });
 
@@ -285,6 +268,7 @@ int mr_create(mr_t *mr, const mr_attr_t *attr, mr_mapper_t mapper, mr_reducer_t 
     (*mr)->contatore_token_distinti=0;
 
     (*mr)->attributi=mr_attr;
+    (*mr)->f_stat = NAME_STAT_FILE;
 
 
     return 0;
@@ -312,8 +296,6 @@ int mr_destroy(mr_t mr){
         sem_unlink(NAME_SEM_LOG);
         sem_unlink(NAME_SEM_STAT);
     }
-    fclose(mr->f_log);
-    fclose(mr->f_stat);
     free(mr);
     return 0;
 }
@@ -845,13 +827,15 @@ int mr_start(mr_t mr, const char *input_path, const char *output_path){
 
     //scrittura nel file delle statistiche
     sem_wait(mr->stat_sem);
-    fprintf(mr->f_stat, "STATISTICHE FINALI ELABORAZIONE NUMERO %zu\n", mr->numero_elaborazione);
-    fprintf(mr->f_stat, "tempo di esecuzione: %.3f ms\n", tempo_ms);
-    fprintf(mr->f_stat, "righe lette: %zu\n", mr->contatore_righe_lette);
-    fprintf(mr->f_stat, "coppie prodotte: %zu\n", contatore_coppie);
-    fprintf(mr->f_stat, "token distinti: %zu\n", contatore_token_distinti);
-    fprintf(mr->f_stat, "risultati emessi: %zu\n", mr->contatore_risultati);
-    fflush(mr->f_stat);
+    FILE *f_log = fopen(mr->f_stat, "a");
+    fprintf(f_log, "STATISTICHE FINALI ELABORAZIONE NUMERO %zu\n", mr->numero_elaborazione);
+    fprintf(f_log, "tempo di esecuzione: %.3f ms\n", tempo_ms);
+    fprintf(f_log, "righe lette: %zu\n", mr->contatore_righe_lette);
+    fprintf(f_log, "coppie prodotte: %zu\n", contatore_coppie);
+    fprintf(f_log, "token distinti: %zu\n", contatore_token_distinti);
+    fprintf(f_log, "risultati emessi: %zu\n", mr->contatore_risultati);
+    fflush(f_log);
+    fclose(f_log);
     sem_post(mr->stat_sem);
     
     return 0;

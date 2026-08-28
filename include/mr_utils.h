@@ -26,8 +26,7 @@ struct mr{
     mr_reducer_t reducer_fun;
     void *user_arg;
 
-    FILE *f_log;
-    FILE *f_stat;
+    
     int main_to_mapper [2];
     int mapper_to_reducer [2];
     int reducer_to_main [2];
@@ -47,6 +46,7 @@ struct mr{
     struct timespec *inizio;
     struct timespec *fine;
 
+    char *f_stat;
     sem_t *log_sem;
     sem_t *stat_sem;
 };
