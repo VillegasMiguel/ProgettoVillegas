@@ -504,7 +504,7 @@ int mapper_process_main(mr_t mr){
 
     scrivi_log(mr, "terminazione di tutti i thread", "MAPPER", 0);
     char msg_contatore[64];
-    sprintf(msg_contatore, "numero di coppie prodotte dalla mapper: %zu", mr->contatore_coppie);
+    sprintf(msg_contatore, "numero di coppie prodotte dal mapper: %zu", mr->contatore_coppie);
     scrivi_log(mr, msg_contatore, "MAPPER", 0);
 
     close(STDOUT_FILENO); //segnalare EOF al reducer
