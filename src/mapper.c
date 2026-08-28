@@ -202,6 +202,7 @@ static int emit(const char *token, const void *value, size_t value_size, void *e
         free(msg);
     });
     free(msg);
+    mr->contatore_coppie++;
     return 0;
 }
 
@@ -502,6 +503,9 @@ int mapper_process_main(mr_t mr){
     }
 
     scrivi_log(mr, "terminazione di tutti i thread", "MAPPER", 0);
+    char *msg_contatore;
+    sprintf(msg_contatore, "numero di coppie prodotte dalla mapper: %zu", mr->contatore_coppie);
+    scrivi_log(mr, msg_contatore, "MAPPER", 0);
 
     close(STDOUT_FILENO); //segnalare EOF al reducer
 
