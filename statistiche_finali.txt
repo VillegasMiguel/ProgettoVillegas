@@ -1,0 +1,12 @@
+STATISTICHE FINALI ELABORAZIONE NUMERO 1
+tempo di esecuzione: 649.273 ms
+righe lette: 6
+coppie prodotte: 6
+token distinti: 6
+risultati emessi: 6
+STATISTICHE FINALI ELABORAZIONE NUMERO 2
+tempo di esecuzione: 654.549 ms
+righe lette: 9
+coppie prodotte: 4
+token distinti: 4
+risultati emessi: 4
