@@ -141,16 +141,6 @@ int main ( int argc , char ** argv ) {
     lista_arg[1].num_threads_reducer=4;
 
     for(size_t i=0;i<2;i++){
-        /*
-        printf("inserire numero thread mapper nella elaborazione %zu\n", i+1);
-        scanf("%zu", &lista_arg[i].num_threads_mapper);
-
-        printf("inserire numero thread reducer nella elaborazione %zu\n", i+1);
-        scanf("%zu", &lista_arg[i].num_threads_reducer);
-
-        printf("inserire coda nella elaborazione %zu\n", i+1);
-        scanf("%zu", &lista_arg[i].dim_coda);
-        */
         if(thrd_create(&threads[i], crea_elaborazione, &lista_arg[i])==thrd_error)return 1;
     }
 

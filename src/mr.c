@@ -162,11 +162,7 @@ int mr_attr_set_log_file(mr_attr_t *attr, const char *path){
 int mr_attr_set_hash_function(mr_attr_t *attr,mr_hash_t hash,void *hash_arg){
     if(attr==NULL)return -1;
     attr->hash_arg=hash_arg;
-    if(hash==NULL){
-        attr->hash = hash_default; 
-        return 0;
-    }
-    attr->hash = hash;
+    attr->hash = (hash != NULL) ? hash : hash_default;
     return 0;
 }
 
@@ -182,6 +178,7 @@ int mr_create(mr_t *mr, const mr_attr_t *attr, mr_mapper_t mapper, mr_reducer_t 
     SYSNCALL((*mr)=malloc(sizeof(struct mr)), "malloc per struct mr");  //mr è puntatore al tipo mr_t che a sua volta è un puntatore al tipo mr
 
 
+    
     (*mr)->numero_elaborazione=atomic_fetch_add(&numero_elaborazioni_create,1)+1; //perché atomic_fetch_add restituisce il valore precedente
 
     atomic_fetch_add(&numero_elaborazioni_attive,1); //non presenta valore di errore da controllare
@@ -828,6 +825,7 @@ int mr_start(mr_t mr, const char *input_path, const char *output_path){
     //scrittura nel file delle statistiche
     sem_wait(mr->stat_sem);
     FILE *f_log = fopen(mr->f_stat, "a");
+    fprintf(f_log, "=======================================================================\n");
     fprintf(f_log, "STATISTICHE FINALI ELABORAZIONE NUMERO %zu\n", mr->numero_elaborazione);
     fprintf(f_log, "tempo di esecuzione: %.3f ms\n", tempo_ms);
     fprintf(f_log, "righe lette: %zu\n", mr->contatore_righe_lette);

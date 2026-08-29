@@ -20,6 +20,7 @@ mr_t è di tipo opaco, la sua implementazione non può essere osservata dal prog
 dato che mr_t è un puntatore alla struct mr, definisco quest'ultima all'interno di fun.h.
 */
 struct mr{
+    char *nome_programma;
     size_t numero_elaborazione; //ogni mr avrà un ID univoco che rappresenta il numero di elaborazione per ADDENDUM
     mr_attr_t* attributi;
     mr_mapper_t mapper_fun;

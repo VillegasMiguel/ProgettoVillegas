@@ -1,0 +1,20 @@
+Tenenbaum : 8.0
+Qualcuno volò sul nido del cuculo : 9.8
+Taxi driver : 9.7
+Obsession : 9.0
+Scary Movie 5 : 2.0
+Tenenbaum : 9.0
+Tenenbaum : 4.0
+Blade Runner : 10.0
+Blade : 6.0
+Taxi driver : 8.0
+Scary Movie 5 : 6.0
+Taxi driver : 9.0
+The Lego Movie : 7.5
+The Lego Movie : 6.5
+Arancia Meccanica : 10.0
+Old boy : 8.0
+Old boy : 10.0
+Kiki consegne a domicilio : 9.8
+Kiki consegne a domicilio : 8.0
+Kiki consegne a domicilio : 8.5
