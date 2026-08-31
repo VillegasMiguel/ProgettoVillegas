@@ -34,8 +34,6 @@
 /*
 Dal momento che vi possono essere più elaborazioni nello stesso processo chiamante,
 è necessario conoscere il numero di elaborazioni attive per poter determinare quando eseguire l'unlink dei semafori.
-utilizzando static tutte le elaborazioni condivideranno lo stesso contatore e mutex.
-utilizzo mtx_inizializzazione per far si che la inizializzazione di mtx_istanze_attive avvenga una sola volta da parte della prima elaborazione, grazie alla chiamata call_once
 */
 
 static atomic_size_t numero_elaborazioni_create = 0; //per ADDENDUM, per distinguere le diverse elaborazioni.
@@ -43,9 +41,9 @@ static atomic_size_t numero_elaborazioni_create = 0; //per ADDENDUM, per disting
 static atomic_size_t numero_elaborazioni_attive =0;
 
 
-//funzione utile da chiamare ogniqualvolta necessario ricavare il tempo corrente, come per la scrittura nel log o nel file delle statistiche
+//funzione utile da chiamare ogniqualvolta è necessario ricavare il tempo corrente, come per la scrittura nel log o nel file delle statistiche
 static char* tempo_corrente(){
-    char* risultato;
+    char *risultato;
     SYSNCALL_PTR(risultato=malloc(64), "malloc per creazione tempo corrente");
     char tempo_no_ms[64];
     struct timespec tempo;
@@ -67,7 +65,6 @@ static char* tempo_corrente(){
 
 //funzione per scrivere all'interno del file log
 void scrivi_log(mr_t mr, char *messaggio, char *processo, size_t numero_thread){
-
     /*
     formato dei messaggi del log ha la forma
     [timestamp] [numero elaborazione] [processo] [thread] messaggio
@@ -83,7 +80,6 @@ void scrivi_log(mr_t mr, char *messaggio, char *processo, size_t numero_thread){
 
     fprintf(f_log, "[%s] [%zu] [%s] [%zu] [%s]\n", timestamp, mr->numero_elaborazione, processo, numero_thread, messaggio);
     free(timestamp);
-    fflush(f_log); //liberare il buffer prima che un altro processo cerchi di scrivere nel log
     fclose(f_log);
     sem_post(mr->log_sem);
     return;
@@ -105,8 +101,8 @@ static int chiudi_fd_inutilizzati(){
 }
 
 //hash_default utilizzata è la Additive Hash
-size_t hash_default(const char *token, size_t token_len, void *user_arg){  //non è necessario controllare che token sia NULL, perché la hash viene chiamata durante l'esecuzione del processo reducer, e se è arrivato a quel punto del codice, significa che si sono già fatti i controlli sulla token
-    (void)user_arg;
+size_t hash_default(const char *token, size_t token_len, void *hash_arg){  //non è necessario controllare che token sia NULL, perché la hash viene chiamata durante l'esecuzione del processo reducer, e se è arrivato a quel punto del codice, significa che si sono già fatti i controlli sulla token
+    (void)hash_arg;
     size_t ris=0;
     for(size_t i=0;i<token_len;i++){
         ris += (unsigned char)token[i]; //unsigned char per garantire che il valore ottenuto sia positivo.
@@ -147,15 +143,7 @@ int mr_attr_set_queue_size(mr_attr_t *attr, size_t n){
 
 int mr_attr_set_log_file(mr_attr_t *attr, const char *path){
     if(attr==NULL)return -1;
-    if(path==NULL){
-        attr->log_file=NAME_LOG_DEFAULT;
-        return 0;
-    }
-    attr->log_file=path;
-    /*
-    posso effetturare una shallow copy e non una deep copy
-    perché è compito della mr_create di copiare internamente le informazioni di configurazione necessarie.
-    */
+    attr->log_file = (path!=NULL) ? path : NAME_LOG_DEFAULT;
     return 0;
 }
 
@@ -205,14 +193,6 @@ int mr_create(mr_t *mr, const mr_attr_t *attr, mr_mapper_t mapper, mr_reducer_t 
         atomic_fetch_sub(&numero_elaborazioni_attive,1);
     });
     mr_attr->log_file=log_name;
-
-
-    /*
-    necessaria deep copy perché esplicitato nel testo del progetto che una volta evocato la mr_create,
-    il chiamante è in grado di modificare o eliminare la struttura mr_attr_t.
-    Dal momento che è stata eseguita una shallow copy in mr_attr_set_log_file,
-    necessario chiamare la strdup che alloca memoria dinamicamente e copia la stringa in quella memoria
-    */
 
 
     /*
@@ -274,9 +254,6 @@ int mr_create(mr_t *mr, const mr_attr_t *attr, mr_mapper_t mapper, mr_reducer_t 
 
 int mr_attr_destroy(mr_attr_t *attr){
     if(attr==NULL)return -1;
-    /*
-    non è necessaria eseguire alcuna operazione dal momento che non vi sono risorse allocate dinamicamente all'interno della attr
-    */
    return 0;
 }
 
@@ -334,7 +311,7 @@ static char* leggi_riga(mr_t mr, FILE *f) {
 }
 
 static char* serializza_riga(mr_t mr, const char *fp, char* riga, unsigned long numero_riga, size_t *dim_riga){
-     //controlli per la lunghezza massima già presenti in scan_file_reg e in scansione_files
+    //controlli per la lunghezza massima già presenti in scan_file_reg e in scansione_files
     size_t lunghezza_fp=strlen(fp);
     size_t lunghezza_riga=strlen(riga);
     if (lunghezza_riga > 0 && riga[lunghezza_riga - 1] == '\n') {
@@ -344,7 +321,7 @@ static char* serializza_riga(mr_t mr, const char *fp, char* riga, unsigned long 
 
 
     //prima calcolo dimensione del buffer   
-    //dim = numero byte per lunghezza nome_file + strlen(nome_file) + numero byte per numero_riga + numero byte per lunghezza linea + linea
+    //dim = numero byte per lunghezza nome_file + strlen(nome_file) + numero byte per numero_riga + numero byte per lunghezza linea + lunghezza linea
     size_t dim=sizeof(int) + lunghezza_fp + sizeof(unsigned long) + sizeof(int) + lunghezza_riga;
     //uso unsigned long per numero_riga per renderlo coerente con la struct mr_file_line_t
     //progetto richiede che le lunghezze mandate mediante la pipe siano di tipo int
@@ -383,7 +360,7 @@ static char* serializza_riga(mr_t mr, const char *fp, char* riga, unsigned long 
 ssize_t writen(int fd, void *buf, size_t n){
     size_t tot=0;
     ssize_t caratteri_scritti;
-    char* buf_castato = buf;  //casting che permette di poter utilizzare l'aritmetica dei puntatori.
+    char *buf_castato = buf;  //casting che permette di poter utilizzare l'aritmetica dei puntatori.
     while((caratteri_scritti=write(fd, buf_castato+tot,n-tot))>0){
         tot+=caratteri_scritti;
         if(tot==n)break;
@@ -400,6 +377,7 @@ ssize_t readn(int fd, void *buf, size_t n){
         tot+=caratteri_letti;
         if(tot==n)break;
     }
+    if(caratteri_letti == -1) return -1;
     return tot; // se tot==0 raggiunto EOF
 }
 
@@ -408,7 +386,7 @@ int scan_file_reg(mr_t mr, const char *fp){
     FILE *f_input;
     unsigned long numero_riga=0;
     SYSNCALLC(f_input=fopen(fp, "r"), "errore apertura file input", scrivi_log(mr, "errore apertura file input", "MAIN", 0));
-    char msg[100];
+    char msg[PATH_MAX + 24];
     SYSCALLC(snprintf(msg,sizeof(msg), "apertura del file %s", fp), "errore snprintf apertura file", scrivi_log(mr, "errore snprintf apertura file", "MAIN", 0));
     scrivi_log(mr, msg, "MAIN",0);
     char* riga;
@@ -422,7 +400,6 @@ int scan_file_reg(mr_t mr, const char *fp){
         size_t dim_riga_serializzata;
         SYSNCALLC(riga_serializzata=serializza_riga(mr, fp, riga, numero_riga, &dim_riga_serializzata), "errore serializzazione riga per mapper", {scrivi_log(mr, "errore serializzazione riga per mapper", "MAIN", 0); free(riga);fclose(f_input);});
         if(writen(mr->main_to_mapper[1],riga_serializzata, dim_riga_serializzata)==-1){
-            perror("errore write verso mapper");
             scrivi_log(mr, "errore write verso mapper", "MAIN", 0);
             free(riga);
             free(riga_serializzata);
@@ -464,7 +441,7 @@ static int scansione_files(mr_t mr,const char *fp){
         return scan_file_reg(mr, fp);
     }
     if(S_ISDIR(info.st_mode)){
-        struct dirent **arr_dirent_ptr;  //dove vengono salvati i vari puntatori ai metadati di ogni file che appartiene al primo livello della directory, in ordine lessicogradico grazie a alphasort
+        struct dirent **arr_dirent_ptr;  //dove vengono salvati i vari puntatori ai metadati di ogni file che appartiene al primo livello della directory, in ordine lessicografico grazie a alphasort
         int len_arr;
         SYSCALLC(len_arr=scandir(fp, &arr_dirent_ptr, NULL, alphasort), "errore utilizzo scandir", scrivi_log(mr, "errore utilizzo scandir", "MAIN", 0));
         size_t len_arr_cast = len_arr;
@@ -472,12 +449,12 @@ static int scansione_files(mr_t mr,const char *fp){
             char *nome = arr_dirent_ptr[i]->d_name;
             if(strcmp(nome, ".")==0 || strcmp(nome, "..")==0)continue;  //per evitare la presenza di cicli infiniti.
             char path_completo[PATH_MAX]; //mi serve il path completo per determinare con stat se il file che sto considerando è regolare o una directory
-                                          //PATH_MAX = lunghezza massima di un pathname del sistema
 
             /*
             nelle SYSCALL in questo caso metto la break, perché così posso liberare tutta la memoria dinamica fuori dal ciclo anche se ho rilevato un errore.
             il programma saprà comunque che si è presentato un errore grazie alla variabile stato_operazione
             */
+
             int ris_path = snprintf(path_completo,sizeof(path_completo), "%s/%s", fp, nome);
             if(ris_path<0 || (size_t)ris_path >=sizeof(path_completo)){ //può capitare che il numero di byte da copiare sia più grande della dimensione del buffer.
                 scrivi_log(mr, "erorre snprintf in scansione_files", "MAIN",0);
@@ -640,8 +617,8 @@ int mr_start(mr_t mr, const char *input_path, const char *output_path){
     //lettura della pipe reducer_to_main, e creazione della linked list contenente le coppia <token, result>
     Nodo_risultato_t *head=NULL;
     mr_pair_header_red_to_main_t header;
-    size_t contatore_coppie=0;
-    size_t contatore_token_distinti=0;
+    size_t contatore_coppie;
+    size_t contatore_token_distinti;
     
     while(1){
         ssize_t n_header = readn(mr->reducer_to_main[0], &header, sizeof(mr_pair_header_red_to_main_t));
@@ -682,7 +659,6 @@ int mr_start(mr_t mr, const char *input_path, const char *output_path){
         });
         ssize_t n_token = readn(mr->reducer_to_main[0], token, (size_t)header.token_len);
         SYSLETTMAINC(mr, n_token, header.token_len, "errore lettura token nella reducer_to_main[0]", {
-            libera_nodi_risultati(head);
             free(token);
             free(nodo);
             CLEANUP_LETTURA;
@@ -693,21 +669,18 @@ int mr_start(mr_t mr, const char *input_path, const char *output_path){
         if(header.result_len>0){
             SYSNCALLC(result = malloc(header.result_len), "errore malloc result durante lettura reducer_to_main[0]", {
                 scrivi_log(mr, "errore malloc result durante lettura reducer_to_main[0]", "MAIN", 0);
-                libera_nodi_risultati(head);
                 free(token);
                 free(nodo);
                 CLEANUP_LETTURA;
             });
             ssize_t n_result = readn(mr->reducer_to_main[0], result, (size_t)header.result_len);
             SYSLETTMAINC(mr, n_result, header.result_len, "errore lettura result nella reducer_to_main[0]", {
-                libera_nodi_risultati(head);
                 free(token);
                 free(nodo);
                 free(result);
                 CLEANUP_LETTURA;
             });
         }
-
 
 
         nodo->next=head;
@@ -737,7 +710,7 @@ int mr_start(mr_t mr, const char *input_path, const char *output_path){
         return -1;
     }
 
-    char msg[100];
+    char msg[64];
     SYSCALLC(snprintf(msg, sizeof(msg), "numero di righe inviate al mapper: %zu", mr->contatore_righe_lette), "errore snprintf numero righe inviate al mapper", scrivi_log(mr, "errore snprintf numero righe inviate al mapper", "MAIN", 0));
     scrivi_log(mr, msg, "MAIN", 0);
 
@@ -832,11 +805,8 @@ int mr_start(mr_t mr, const char *input_path, const char *output_path){
     fprintf(f_log, "coppie prodotte: %zu\n", contatore_coppie);
     fprintf(f_log, "token distinti: %zu\n", contatore_token_distinti);
     fprintf(f_log, "risultati emessi: %zu\n", mr->contatore_risultati);
-    fflush(f_log);
     fclose(f_log);
     sem_post(mr->stat_sem);
     
     return 0;
 }
-
-

@@ -4,7 +4,6 @@ AR = ar
 ARFLAGS = rcs
 
 #file sorgenti del framework
-SRCS = src/mr.c src/mapper.c src/reducer.c
 OBJS = src/mr.o src/mapper.o src/reducer.o
 
 #compila tutto
