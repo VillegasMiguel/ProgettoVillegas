@@ -1,0 +1,7 @@
+=======================================================================
+STATISTICHE FINALI ELABORAZIONE NUMERO 1
+tempo di esecuzione: 623.207 ms
+righe lette: 20
+coppie prodotte: 20
+token distinti: 11
+risultati emessi: 11

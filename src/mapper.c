@@ -229,7 +229,7 @@ static int reader_mapper ( void * arg ){
         });
         if(arg_ptr->coda->errore){
             SYSTHCALLC(mtx_unlock(mtx_coda_ptr), "errore mtx_unlock della coda da parte di reader_mapper", scrivi_log(mr, "errore mtx_unlock della coda da parte di reader_mapper", "MAPPER", id_thread));
-            return-1;
+            return -1;
         }
         SYSTHCALLC(mtx_unlock(mtx_coda_ptr), "errore mtx_unlock della coda da parte di reader_mapper", scrivi_log(mr, "errore mtx_unlock della coda da parte di reader_mapper", "MAPPER", id_thread));
 
