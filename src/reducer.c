@@ -1,4 +1,3 @@
-#define _POSIX_C_SOURCE 200809L  //include negli header i prototipi delle funzione definite dallo standard di sistema POSIX, utile per poter usare localtime_r
 #include "../include/mr.h"
 #include "../include/macro.h"
 #include "../include/mr_utils.h"
@@ -30,7 +29,6 @@ static atomic_int errore=0;
 
 typedef struct{
     Coppia_t **coda_reducer;
-
     mr_t mr;
 
     size_t head;
@@ -43,8 +41,6 @@ typedef struct{
     cnd_t full;
 
     mtx_t *mtx_pipe;
-
-
 }Coda_reducer_t;
 
 typedef struct{
@@ -65,9 +61,6 @@ static void mtx_cnd_coda_destroy(Coda_reducer_t **coda, size_t num, mtx_t *mtx_p
         //non elimino mtx_pipe dentro questa funzione perché tutti i thread si riferiscono alla stessa mtx_pipe, quindi la elimino una singola volta.
     }
     mtx_destroy(mtx_pipe);
-    //free coda viene eseguita dal chiamante,
-    // perché può capitare di dover liberare anche coda[i+1] ma se viene liberata la coda in questa funzione, poi non sono più in grado di accedere a coda[i+1]
-
 }
 
 static void libera_coppia(Coppia_t *coppia){

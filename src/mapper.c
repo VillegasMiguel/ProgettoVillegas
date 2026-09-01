@@ -1,4 +1,3 @@
-#define _POSIX_C_SOURCE 200809L  //include negli header i prototipi delle funzione definite dallo standard di sistema POSIX, utile per poter usare localtime_r
 #include "../include/mr.h"
 #include "../include/macro.h"
 #include "../include/mr_utils.h"
